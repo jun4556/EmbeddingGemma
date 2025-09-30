@@ -1,7 +1,7 @@
-<0>]Class$(229,210)!乗り物!!-ドア%-バージョン%!;
-<1>]Class$(233,75)!運転者!!!;
-<2>]Class$(128,383)!部品!!-エンジン%-馬力%!;
-<3>]Class$(371,374)!タイヤ!!-メーカー%-サイズ%-前輪%-後輪%!;
+<0>]Class$(444,181)!乗り物!!-ドア%-バージョン%!;
+<1>]Class$(239,201)!運転者!!!;
+<2>]Class$(628,319)!部品!!-エンジン%-馬力%!;
+<3>]Class$(630,69)!タイヤ!!-メーカー%-サイズ%-前輪%-後輪%!;
 <4>]ClassRelationLink$<1>!<0>!SimpleRelation!!Solid!None!0..*!!!None!0..1!!;
 <5>]ClassRelationLink$<2>!<0>!Composition!!Solid!None!None!!!InvertedSolidDiamond!1!!;
 <6>]ClassRelationLink$<3>!<0>!SimpleRelation!!Solid!None!1!!!None!1..*!!;

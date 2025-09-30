@@ -1,4 +1,4 @@
-# uml_data.py という名前で保存すると良いでしょう
+# uml_data.py (修正版)
 
 class UmlClass:
     """クラスの情報を保持するクラス"""
@@ -6,19 +6,26 @@ class UmlClass:
         self.id = id
         self.name = name
         self.attributes = attributes
-        self.x = x  # 座標X
-        self.y = y  # 座標Y
+        self.x = x
+        self.y = y
 
     def __repr__(self):
-        # print()で中身を確認しやすくするための記述
         return f"Class(id={self.id}, name='{self.name}', attributes={self.attributes})"
 
+# ▼▼▼ 変更点 ▼▼▼
 class UmlRelation:
     """関連の情報を保持するクラス"""
-    def __init__(self, id, source_id, target_id):
+    def __init__(self, id, source_id, target_id, rel_type='SimpleRelation',
+                 source_multi='None', target_multi='None'):
         self.id = id
-        self.source_id = source_id  # 関連の開始元クラスID
-        self.target_id = target_id  # 関連の終着点クラスID
+        self.source_id = source_id
+        self.target_id = target_id
+        self.type = rel_type
+        self.source_multiplicity = source_multi
+        self.target_multiplicity = target_multi
 
     def __repr__(self):
-        return f"Relation(id={self.id}, source={self.source_id}, target={self.target_id})"
+        return (f"Relation(id={self.id}, type='{self.type}', "
+                f"source={self.source_id}[{self.source_multiplicity}], "
+                f"target={self.target_id}[{self.target_multiplicity}])")
+# ▲▲▲ 変更点 ▲▲▲

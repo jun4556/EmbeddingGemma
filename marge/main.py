@@ -1,10 +1,12 @@
-# main.py (修正版：「空間的シグネチャ」アルゴリズム + エラー修正)
+# main.py (修正版：関連類似度を追加)
 
 import math
 from file_io import parse_uml_file, write_uml_file
 from similarity_calculator import SimilarityCalculator
 from uml_data import UmlClass, UmlRelation
 
+# --- 省略 (get_relations_for_class, calculate_structural_similarity, calculate_centroid, 
+#            get_spatial_signature, compare_signatures, calculate_spatial_similarity_advanced は変更なし) ---
 def get_relations_for_class(class_id, relations):
     related = {"source": [], "target": []}
     for rel in relations:
@@ -80,16 +82,92 @@ def calculate_spatial_similarity_advanced(cls_a, data_a, cls_b, data_b):
     signature_b = get_spatial_signature(cls_b, data_b)
     return compare_signatures(signature_a, signature_b)
 
-# main.py の find_best_matches 関数のみを修正
+
+# ▼▼▼ 変更点：ここから新しい関数群 ▼▼▼
+
+# 関連タイプの類似度を定義する辞書
+RELATION_TYPE_SIMILARITY = {
+    "Composition": {"Aggregation": 0.8, "Association": 0.5},
+    "Aggregation": {"Composition": 0.8, "Association": 0.6},
+    "Association": {"Composition": 0.5, "Aggregation": 0.6, "SimpleRelation": 0.4},
+    "Generalization": {"Realization": 0.7},
+    "Realization": {"Generalization": 0.7},
+}
+
+def get_relation_type_similarity(type1, type2):
+    """2つの関連タイプの類似度を返す"""
+    if type1 == type2:
+        return 1.0
+    if type1 in RELATION_TYPE_SIMILARITY and type2 in RELATION_TYPE_SIMILARITY[type1]:
+        return RELATION_TYPE_SIMILARITY[type1][type2]
+    if type2 in RELATION_TYPE_SIMILARITY and type1 in RELATION_TYPE_SIMILARITY[type2]:
+        return RELATION_TYPE_SIMILARITY[type2][type1]
+    return 0.0
+
+def get_multiplicity_similarity(multi1, multi2):
+    """多重度の類似度を単純な文字列比較で返す"""
+    return 1.0 if multi1 == multi2 else 0.0
+
+def get_all_relations_for_class(class_id, relations):
+    """指定されたクラスIDに関連する全ての関連オブジェクトを返す"""
+    return [rel for rel in relations if rel.source_id == class_id or rel.target_id == class_id]
+
+def calculate_relational_similarity(cls_a, data_a, cls_b, data_b):
+    """関連の種類と多重度に基づいた類似度を計算する"""
+    relations_a = get_all_relations_for_class(cls_a.id, data_a["relations"])
+    relations_b = get_all_relations_for_class(cls_b.id, data_b["relations"])
+
+    if not relations_a and not relations_b:
+        return 1.0
+    if not relations_a or not relations_b:
+        return 0.0
+
+    total_max_score = 0
+    matched_b_indices = set()
+
+    # Aの各関連について、Bの中で最も似ている関連を探す
+    for rel_a in relations_a:
+        max_score = -1.0
+        best_match_idx = -1
+        for i, rel_b in enumerate(relations_b):
+            if i in matched_b_indices:
+                continue
+            
+            # 関連タイプの類似度
+            type_sim = get_relation_type_similarity(rel_a.type, rel_b.type)
+            # 多重度の類似度 (単純比較)
+            source_multi_sim = get_multiplicity_similarity(rel_a.source_multiplicity, rel_b.source_multiplicity)
+            target_multi_sim = get_multiplicity_similarity(rel_a.target_multiplicity, rel_b.target_multiplicity)
+            
+            # スコアを計算 (重み付け: type=0.6, multiplicity=0.4)
+            current_score = 0.6 * type_sim + 0.4 * ((source_multi_sim + target_multi_sim) / 2)
+            
+            if current_score > max_score:
+                max_score = current_score
+                best_match_idx = i
+        
+        if best_match_idx != -1:
+            total_max_score += max_score
+            matched_b_indices.add(best_match_idx)
+
+    # 平均スコアと、関連数の違いによるペナルティを考慮
+    avg_score = total_max_score / len(relations_a) if relations_a else 0
+    len_diff_penalty = 1.0 - (abs(len(relations_a) - len(relations_b)) / max(len(relations_a), len(relations_b)))
+    
+    return avg_score * len_diff_penalty
+
+# ▲▲▲ 変更点：ここまで新しい関数群 ▲▲▲
+
 
 def find_best_matches(data_a, data_b, calculator, threshold=0.6, weights=None):
+    # ▼▼▼ 変更点：重みに "relational" を追加 ▼▼▼
     if weights is None:
-        weights = {"semantic": 0.7, "structural": 0.15, "spatial": 0.15}
+        weights = {"semantic": 0.6, "relational": 0.2, "structural": 0.1, "spatial": 0.1}
+    # ▲▲▲ 変更点 ▲▲▲
 
     classes_a = list(data_a["classes"])
     classes_b = list(data_b["classes"])
     
-    # 全てのペアのスコアを事前に計算
     all_scores = []
     for cls_a in classes_a:
         for cls_b in classes_b:
@@ -99,71 +177,71 @@ def find_best_matches(data_a, data_b, calculator, threshold=0.6, weights=None):
             semantic_score = calculator.get_similarity(text_a, text_b)
             structural_score = calculate_structural_similarity(cls_a, cls_b, data_a, data_b)
             spatial_score = calculate_spatial_similarity_advanced(cls_a, data_a, cls_b, data_b)
+            # ▼▼▼ 変更点：関連類似度を計算 ▼▼▼
+            relational_score = calculate_relational_similarity(cls_a, data_a, cls_b, data_b)
             
             total_score = (semantic_score * weights["semantic"] +
+                           relational_score * weights["relational"] + # スコア計算に追加
                            structural_score * weights["structural"] +
                            spatial_score * weights["spatial"])
             
-            all_scores.append((total_score, semantic_score, structural_score, spatial_score, cls_a, cls_b))
+            all_scores.append((total_score, semantic_score, relational_score, structural_score, spatial_score, cls_a, cls_b))
+            # ▲▲▲ 変更点 ▲▲▲
     
-    # 総合スコアで降順にソート
     all_scores.sort(key=lambda x: x[0], reverse=True)
     
     matched_pairs = []
     matched_a_ids = set()
     matched_b_ids = set()
     
-    # --- ▼▼▼ 新しい段階的マッチングロジック ▼▼▼ ---
-    
-    # ステップ1：名前が完全一致するペアを最優先でマッチング
+    # 段階的マッチングロジック (省略)
     for score_tuple in list(all_scores):
-        cls_a = score_tuple[4]
-        cls_b = score_tuple[5]
+        cls_a = score_tuple[5]
+        cls_b = score_tuple[6]
         if cls_a.name == cls_b.name:
             if cls_a.id not in matched_a_ids and cls_b.id not in matched_b_ids:
                 matched_pairs.append(score_tuple)
                 matched_a_ids.add(cls_a.id)
                 matched_b_ids.add(cls_b.id)
 
-    # ステップ2：意味スコアが非常に高いペアを次にマッチング
     high_confidence_threshold = 0.95
     for score_tuple in list(all_scores):
         sem_score = score_tuple[1]
-        cls_a = score_tuple[4]
-        cls_b = score_tuple[5]
+        cls_a = score_tuple[5]
+        cls_b = score_tuple[6]
         if sem_score >= high_confidence_threshold:
             if cls_a.id not in matched_a_ids and cls_b.id not in matched_b_ids:
                 matched_pairs.append(score_tuple)
                 matched_a_ids.add(cls_a.id)
                 matched_b_ids.add(cls_b.id)
 
-    # ステップ3：残りのクラスで、総合スコアに基づいた通常のマッチングを行う
     for score_tuple in list(all_scores):
         total_score = score_tuple[0]
-        cls_a = score_tuple[4]
-        cls_b = score_tuple[5]
+        cls_a = score_tuple[5]
+        cls_b = score_tuple[6]
         if total_score >= threshold:
             if cls_a.id not in matched_a_ids and cls_b.id not in matched_b_ids:
                 matched_pairs.append(score_tuple)
                 matched_a_ids.add(cls_a.id)
                 matched_b_ids.add(cls_b.id)
             
-    # --- ▲▲▲ 新ロジックここまで ▲▲▲ ---
-
     unmatched_a = [cls for cls in classes_a if cls.id not in matched_a_ids]
     unmatched_b = [cls for cls in classes_b if cls.id not in matched_b_ids]
     
-    # 表示のために、最終的なマッチング結果をスコアでソート
     matched_pairs.sort(key=lambda x: x[0], reverse=True)
     
     return matched_pairs, unmatched_a, unmatched_b, all_scores
+
+# merge_uml_data は変更なし
 def merge_uml_data(matches, unmatched_a, unmatched_b, relations_a, relations_b):
     merged_classes = []
     merged_relations = []
     id_map_a = {}
     id_map_b = {}
     new_id_counter = 1
-    for _, _, _, _, cls_a, cls_b in matches:
+    # ▼▼▼ 変更点: score_tupleのインデックスを調整 ▼▼▼
+    for _, _, _, _, _, cls_a, cls_b in matches:
+    # ▲▲▲ 変更点 ▲▲▲
         merged_attrs = sorted(list(set(cls_a.attributes + cls_b.attributes)))
         merged_x = (cls_a.x + cls_b.x) // 2
         merged_y = (cls_a.y + cls_b.y) // 2
@@ -182,14 +260,33 @@ def merge_uml_data(matches, unmatched_a, unmatched_b, relations_a, relations_b):
         merged_classes.append(new_class)
         id_map_b[cls.id] = new_class.id
         new_id_counter += 1
-    all_relations = relations_a + relations_b
-    for rel in all_relations:
-        id_map = id_map_a if rel in relations_a else id_map_b
+        
+    # --- マージ時の関連の再現 ---
+    # マージされなかったクラスの元の関連を保持する
+    processed_relations = set()
+    
+    def add_relation_if_new(rel, id_map):
         new_source_id = id_map.get(rel.source_id)
         new_target_id = id_map.get(rel.target_id)
-        if new_source_id and new_target_id:
-            new_relation = UmlRelation(str(len(merged_relations) + 1), new_source_id, new_target_id)
+        
+        # 関連の重複を防ぐためのキー
+        rel_key = tuple(sorted((new_source_id, new_target_id)))
+        
+        if new_source_id and new_target_id and rel_key not in processed_relations:
+            # マージ後のIDで新しい関連を作成
+            new_relation = UmlRelation(str(len(merged_relations) + 1),
+                                       new_source_id, new_target_id,
+                                       rel.type, rel.source_multiplicity,
+                                       rel.target_multiplicity)
             merged_relations.append(new_relation)
+            processed_relations.add(rel_key)
+
+    all_original_relations = relations_a + relations_b
+    for rel in all_original_relations:
+        # この関連がどちらの図に属していたかに応じて適切なIDマップを使用
+        id_map = id_map_a if rel in relations_a else id_map_b
+        add_relation_if_new(rel, id_map)
+        
     return {"classes": merged_classes, "relations": merged_relations}
 
 
@@ -203,18 +300,25 @@ if data_a and data_b:
             data_a, data_b, calculator, threshold=0.6
         )
         print("\n--- 全てのクラスペアの類似度スコア一覧 ---")
-        print(f"{'Total':<8}{'Semantic':<10}{'Structural':<12}{'Spatial':<10}{'Class A':<20}{'Class B':<20}")
-        print("-" * 80)
-        for score, sem, stru, spa, cls_a, cls_b in all_class_scores:
-            print(f"{score:<8.4f}{sem:<10.4f}{stru:<12.4f}{spa:<10.4f}{cls_a.name:<20}{cls_b.name:<20}")
+        # ▼▼▼ 変更点：表示ヘッダに "Relational" を追加 ▼▼▼
+        print(f"{'Total':<8}{'Semantic':<10}{'Relational':<12}{'Structural':<12}{'Spatial':<10}{'Class A':<20}{'Class B':<20}")
+        print("-" * 90)
+        for score, sem, rel, stru, spa, cls_a, cls_b in all_class_scores:
+            print(f"{score:<8.4f}{sem:<10.4f}{rel:<12.4f}{stru:<12.4f}{spa:<10.4f}{cls_a.name:<20}{cls_b.name:<20}")
+        # ▲▲▲ 変更点 ▲▲▲
+
         print("\n--- 統合スコアに基づくマッチング候補 ---")
         if matches:
-            print(f"{'Total':<8}{'Semantic':<10}{'Structural':<12}{'Spatial':<10}{'Class A':<20}{'Class B':<20}")
-            print("-" * 80)
-            for score, sem, stru, spa, cls_a, cls_b in matches:
-                print(f"{score:<8.4f}{sem:<10.4f}{stru:<12.4f}{spa:<10.4f}{cls_a.name:<20}{cls_b.name:<20}")
+            # ▼▼▼ 変更点：表示ヘッダに "Relational" を追加 ▼▼▼
+            print(f"{'Total':<8}{'Semantic':<10}{'Relational':<12}{'Structural':<12}{'Spatial':<10}{'Class A':<20}{'Class B':<20}")
+            print("-" * 90)
+            for score, sem, rel, stru, spa, cls_a, cls_b in matches:
+                print(f"{score:<8.4f}{sem:<10.4f}{rel:<12.4f}{stru:<12.4f}{spa:<10.4f}{cls_a.name:<20}{cls_b.name:<20}")
+            # ▲▲▲ 変更点 ▲▲▲
         else:
             print("基準を超えるマッチング候補は見つかりませんでした。")
+
+        # 未マッチクラスの表示 (変更なし)
         print("\n--- マッチングされなかったクラス ---")
         if not unmatched_a and not unmatched_b:
             print("全てのクラスがマッチングされました。")
@@ -227,6 +331,7 @@ if data_a and data_b:
                 print("図Bの未マッチクラス:")
                 for cls in unmatched_b:
                     print(f"  - {cls.name}")
+
         print("\n--- マージ処理を実行中... ---")
         merged_data = merge_uml_data(matches, unmatched_a, unmatched_b, data_a["relations"], data_b["relations"])
         output_filename = "data_merged.txt"
