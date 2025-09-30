@@ -8,8 +8,9 @@ def parse_uml_file(file_path):
     classes = []
     relations = []
     
-    # 【修正点】属性部分(.*)をより柔軟に受け取り、属性がないクラスにも対応
-    class_pattern = re.compile(r"<(\d+)>]Class\$\((\d+),(\d+)\)!(.*)!!(.*);")
+    # 【修正点】正規表現を修正し、属性がない'!!!'の形式にも対応
+    # クラス名(非貪欲マッチ)と、その後のセパレータ以降の文字列をキャプチャする
+    class_pattern = re.compile(r"<(\d+)>]Class\$\((\d+),(\d+)\)!(.*?)!(.*);")
     relation_pattern = re.compile(r"<(\d+)>]ClassRelationLink\$<(\d+)>!<(\d+)>!.*")
 
     try:
@@ -21,15 +22,20 @@ def parse_uml_file(file_path):
 
                 class_match = class_pattern.match(line)
                 if class_match:
-                    id, x, y, name, attrs_part = class_match.groups()
+                    id, x, y, name, rest = class_match.groups()
+                    # restには '!!-属性1%-属性2%' または '!!' が入る
                     
                     attributes = []
-                    # 属性パートが存在するかチェック
-                    if attrs_part.startswith('-'):
-                        # 先頭の'-'と末尾の'%;'を取り除く
-                        clean_attrs = attrs_part.strip('-%!;')
-                        if clean_attrs:
-                            attributes = clean_attrs.split('%-')
+                    # 【修正点】属性部分の判定をより厳密に
+                    # 属性がある場合、restは'!-...'で始まる
+                    if rest.startswith('!-'):
+                        # 先頭の'!-'と、もしあれば末尾の'%'を取り除く
+                        attrs_str = rest[2:]
+                        if attrs_str.endswith('%'):
+                            attrs_str = attrs_str[:-1]
+                        
+                        if attrs_str:
+                            attributes = attrs_str.split('%-')
                             
                     classes.append(UmlClass(id, name, attributes, int(x), int(y)))
                     continue
@@ -44,7 +50,6 @@ def parse_uml_file(file_path):
         return None
 
     return {"classes": classes, "relations": relations}
-# file_io.py に追記
 
 def write_uml_file(file_path, uml_data):
     """プログラム上のデータをクラス図ファイル形式で書き出す"""
@@ -52,13 +57,14 @@ def write_uml_file(file_path, uml_data):
     
     # クラス情報を文字列に変換
     for uml_class in uml_data["classes"]:
-        # 属性リストを '%-' で連結して文字列に戻す
-        attrs_str = "%-".join(uml_class.attributes)
-        if attrs_str:
-            attrs_str += "%" # 末尾に % を付ける
-        
-        # 元のフォーマットに従って文字列を組み立てる
-        line = f"<{uml_class.id}>]Class$({uml_class.x},{uml_class.y})!{uml_class.name}!!-{attrs_str};"
+        # 【修正点】属性の有無でフォーマットを分岐
+        if uml_class.attributes:
+            # 属性がある場合: !!-属性1%-属性2%;
+            attrs_str = "%-".join(uml_class.attributes)
+            line = f"<{uml_class.id}>]Class$({uml_class.x},{uml_class.y})!{uml_class.name}!!-{attrs_str}%;"
+        else:
+            # 属性がない場合: !!!;
+            line = f"<{uml_class.id}>]Class$({uml_class.x},{uml_class.y})!{uml_class.name}!!!;"
         lines.append(line)
 
     # 関連情報を文字列に変換 (今回は主要部分のみを再現)

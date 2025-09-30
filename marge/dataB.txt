@@ -1,10 +1,7 @@
-<10>]Class$(100,100)!Vehicle!!-speed%!-model%;
-<11>]Class$(100,250)!Car!!-door_count%!-model_number%;
-<12>]Class$(300,250)!Motor!!-horsepower%!-serial_id%;
-<13>]Class$(300,100)!Wheel!!-diameter%!-brand%;
-<14>]Class$(100,100)!惑星!!-直径%!-質量%;
-<15>]Class$(100,300)!料理!!-レシピ%!-材料%;
-<16>]ClassRelationLink$<11>!<10>!Generalization!!Solid!Triangle!1!!!None!1!!;
-<17>]ClassRelationLink$<11>!<12>!Composition!!Solid!Diamond!1!!!None!1!!;
-<18>]ClassRelationLink$<11>!<13>!Aggregation!!Solid!Rhombus!1!!!None!4!!;
-<17>]ClassRelationLink$<14>!<15>!SimpleRelation!!Solid!None!1!!!None!1!!;
+<0>]Class$(229,210)!乗り物!!-ドア%-バージョン%!;
+<1>]Class$(233,75)!運転者!!!;
+<2>]Class$(128,383)!部品!!-エンジン%-馬力%!;
+<3>]Class$(371,374)!タイヤ!!-メーカー%-サイズ%-前輪%-後輪%!;
+<4>]ClassRelationLink$<1>!<0>!SimpleRelation!!Solid!None!0..*!!!None!0..1!!;
+<5>]ClassRelationLink$<2>!<0>!Composition!!Solid!None!None!!!InvertedSolidDiamond!1!!;
+<6>]ClassRelationLink$<3>!<0>!SimpleRelation!!Solid!None!1!!!None!1..*!!;
