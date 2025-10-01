@@ -160,10 +160,10 @@ def calculate_relational_similarity(cls_a, data_a, cls_b, data_b):
 
 
 def find_best_matches(data_a, data_b, calculator, threshold=0.6, weights=None):
-    # ▼▼▼ 変更点：重みに "relational" を追加 ▼▼▼
+    # ▼▼▼ 変更点：提案Aの重み付けに変更 ▼▼▼
     if weights is None:
-        weights = {"semantic": 0.6, "relational": 0.2, "structural": 0.1, "spatial": 0.1}
-    # ▲▲▲ 変更点 ▲▲▲
+        weights = {"semantic": 0.7, "relational": 0.0, "structural": 0.15, "spatial": 0.15} 
+        # ▲▲▲ 変更点 ▲▲▲
 
     classes_a = list(data_a["classes"])
     classes_b = list(data_b["classes"])
