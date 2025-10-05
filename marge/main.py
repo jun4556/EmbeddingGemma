@@ -1,4 +1,4 @@
-# main.py (IDの再割り当てロジックを修正した最終版)
+# main.py (関連の重複マージロジックを修正した最終版)
 
 import math
 import re
@@ -159,10 +159,9 @@ def adjust_layout_with_repulsion(classes, k_repulsion=20000, iterations=100):
             cls_i.y += int(net_force_y / 10)
     return classes
 
-# ▼▼▼ ID割り当てロジックを修正したマージ関数 ▼▼▼
+# ▼▼▼ 関連が重複しないようにマージ関数を修正 ▼▼▼
 def merge_uml_data(matches, unmatched_a, unmatched_b, data_a, data_b, calculator):
     merged_classes, id_map_a, id_map_b = [], {}, {}
-    # 共有のIDカウンターを0で初期化
     new_id_counter = 0
 
     # 1. クラスのマージ
@@ -171,46 +170,62 @@ def merge_uml_data(matches, unmatched_a, unmatched_b, data_a, data_b, calculator
         merged_name = cls_a.name if cls_a.name == cls_b.name else f"{cls_a.name}/{cls_b.name}"
         merged_x, merged_y = (cls_a.x + cls_b.x) // 2, (cls_a.y + cls_b.y) // 2
         
-        # 共有カウンターからIDを割り当て
         new_class = UmlClass(str(new_id_counter), merged_name, merged_attrs, merged_x, merged_y)
         new_id_counter += 1
 
         merged_classes.append(new_class)
         id_map_a[cls_a.id], id_map_b[cls_b.id] = new_class.id, new_class.id
         
-    # 未マッチクラスの追加
     for cls_list, id_map in [(unmatched_a, id_map_a), (unmatched_b, id_map_b)]:
         for cls in cls_list:
-            # 共有カウンターからIDを割り当て
             new_class = UmlClass(str(new_id_counter), cls.name, cls.attributes, cls.x, cls.y)
             new_id_counter += 1
-            
             merged_classes.append(new_class)
             id_map[cls.id] = new_class.id
             
-    # 2. 関連のマージ
-    merged_relations, processed_relations = [], {}
+    # 2. 関連のマージ（優先度に基づいて重複を排除）
+    potential_relations = {}
+    relation_priority = {
+        'Composition': 4,
+        'Aggregation': 3,
+        'Generalization': 2,
+        'SimpleRelation': 1
+    }
     all_relations = data_a["relations"] + data_b["relations"]
+
     for rel in all_relations:
         id_map = id_map_a if rel in data_a["relations"] else id_map_b
-        new_source_id, new_target_id = id_map.get(rel.source_id), id_map.get(rel.target_id)
-        if not (new_source_id and new_target_id): continue
-        rel_key = tuple(sorted((new_source_id, new_target_id))) + (rel.type,)
-        if rel_key in processed_relations:
-            existing_rel = processed_relations[rel_key]
-            existing_rel.source_multiplicity = merge_multiplicity(
-                existing_rel.source_multiplicity, rel.source_multiplicity)
-            existing_rel.target_multiplicity = merge_multiplicity(
-                existing_rel.target_multiplicity, rel.target_multiplicity)
-        else:
-            # 共有カウンターからIDを割り当て
-            new_relation = UmlRelation(str(new_id_counter),
-                                       new_source_id, new_target_id, rel.type,
-                                       rel.source_multiplicity, rel.target_multiplicity)
-            new_id_counter += 1
-            
-            merged_relations.append(new_relation)
-            processed_relations[rel_key] = new_relation
+        new_source_id = id_map.get(rel.source_id)
+        new_target_id = id_map.get(rel.target_id)
+
+        if not (new_source_id and new_target_id):
+            continue
+
+        rel_key = tuple(sorted((new_source_id, new_target_id)))
+        current_priority = relation_priority.get(rel.type, 0)
+
+        # 既存の関連がないか、新しい関連の優先度が高い場合に上書き
+        if rel_key not in potential_relations or current_priority > relation_priority.get(potential_relations[rel_key].type, 0):
+            potential_relations[rel_key] = UmlRelation(
+                "temp_id",
+                new_source_id,
+                new_target_id,
+                rel.type,
+                rel.source_multiplicity,
+                rel.target_multiplicity
+            )
+        # 優先度が同じ場合は多重度をマージ
+        elif current_priority == relation_priority.get(potential_relations[rel_key].type, 0):
+            existing_rel = potential_relations[rel_key]
+            existing_rel.source_multiplicity = merge_multiplicity(existing_rel.source_multiplicity, rel.source_multiplicity)
+            existing_rel.target_multiplicity = merge_multiplicity(existing_rel.target_multiplicity, rel.target_multiplicity)
+    
+    # IDを再割り当てしながら最終的な関連リストを作成
+    merged_relations = []
+    for rel in potential_relations.values():
+        rel.id = str(new_id_counter)
+        new_id_counter += 1
+        merged_relations.append(rel)
     
     merged_classes = adjust_layout_with_repulsion(merged_classes)
     return {"classes": merged_classes, "relations": merged_relations}
