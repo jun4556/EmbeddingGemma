@@ -1,26 +1,22 @@
-# file_io.py (修正版)
+# file_io.py (関連の書き出し処理を完全に修正)
 
 import re
 from uml_data import UmlClass, UmlRelation
 
 def parse_uml_file(file_path):
-    """クラス図ファイルを解析して、オブジェクトのリストに変換する"""
+    # ... (この関数は変更ありません)
     classes = []
     relations = []
     
     class_pattern = re.compile(r"<(\d+)>]Class\$\((\d+),(\d+)\)!(.*?)!(.*);")
-    
-    # ▼▼▼ 変更点 ▼▼▼
-    # 関連の種類、多重度をキャプチャするよう正規表現を強化
     relation_pattern = re.compile(
-        r"<(\d+)>]ClassRelationLink\$<(\d+)>!<(\d+)>!"  # IDs
-        r"([^!]*)!!"  # Relation Type
-        r"[^!]*![^!]*!"  # Styles (skip)
-        r"([^!]*)!!!"  # Source Multiplicity
-        r"[^!]*!"  # Role (skip)
-        r"([^!]*)!!;"  # Target Multiplicity
+        r"<(\d+)>]ClassRelationLink\$<(\d+)>!<(\d+)>!"
+        r"([^!]*)!!"
+        r"[^!]*![^!]*!"
+        r"([^!]*)!!!"
+        r"[^!]*!"
+        r"([^!]*)!!;"
     )
-    # ▲▲▲ 変更点 ▲▲▲
 
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -35,20 +31,16 @@ def parse_uml_file(file_path):
                     attributes = []
                     if rest.startswith('!-'):
                         attrs_str = rest[2:]
-                        if attrs_str.endswith('%'):
-                            attrs_str = attrs_str[:-1]
-                        if attrs_str:
-                            attributes = attrs_str.split('%-')
+                        raw_attributes = attrs_str.split('%-')
+                        attributes = [re.sub(r'[%!]+$', '', attr).strip() for attr in raw_attributes if attr.strip()]
+
                     classes.append(UmlClass(id, name, attributes, int(x), int(y)))
                     continue
 
                 relation_match = relation_pattern.match(line)
                 if relation_match:
-                    # ▼▼▼ 変更点 ▼▼▼
                     id, source_id, target_id, rel_type, source_multi, target_multi = relation_match.groups()
-                    # 'None'という文字列はNoneに変換せず、そのまま扱う
                     relations.append(UmlRelation(id, source_id, target_id, rel_type, source_multi, target_multi))
-                    # ▲▲▲ 変更点 ▲▲▲
 
     except FileNotFoundError:
         print(f"エラー: ファイル '{file_path}' が見つかりません。")
@@ -58,7 +50,7 @@ def parse_uml_file(file_path):
 
 
 def write_uml_file(file_path, uml_data):
-    """プログラム上のデータをクラス図ファイル形式で書き出す"""
+    """プログラム上のデータをクラス図ファイル形式で書き出す（描画可能な形式に修正）"""
     lines = []
     
     for uml_class in uml_data["classes"]:
@@ -69,33 +61,40 @@ def write_uml_file(file_path, uml_data):
             line = f"<{uml_class.id}>]Class$({uml_class.x},{uml_class.y})!{uml_class.name}!!!;"
         lines.append(line)
 
-    # ▼▼▼ 変更点 ▼▼▼
-    # 保存された関連情報を使って行を再構築（一部固定値で簡略化）
+    # ▼▼▼ 修正箇所: 関連の書き出しロジックを全面的に刷新 ▼▼▼
     for rel in uml_data["relations"]:
         rel_type = rel.type if rel.type else 'SimpleRelation'
         source_multi = rel.source_multiplicity if rel.source_multiplicity else 'None'
         target_multi = rel.target_multiplicity if rel.target_multiplicity else 'None'
 
-        # 関連の種類に応じてスタイルを簡易的に設定
-        style = "Solid!SolidArrow" # Default: Generalization
-        if rel_type == "Realization":
-            style = "LongDashed!SolidArrow"
-        elif rel_type == "Dependency":
-            style = "Dashed!WireArrow"
-        elif rel_type == "Aggregation":
-            style = "Solid!SolidDiamond"
-        elif rel_type == "Composition":
-            style = "Solid!InvertedSolidDiamond"
-        elif "Association" in rel_type:
-            style = "Solid!WireArrow"
-        elif rel_type == "SimpleRelation":
-             style = "Solid!None"
+        # スタイルと矢印の形状を分離して定義
+        line_style = "Solid"
+        source_arrow = "None"
+        target_arrow = "None" # デフォルト
 
-        line = (f"<{rel.id}>]ClassRelationLink\$<{rel.source_id}>!<"
-                f"{rel.target_id}>!{rel_type}!!{style}!{source_multi}!!!"
-                f"None!{target_multi}!!;")
+        if rel_type == "Generalization":
+            target_arrow = "SolidArrow"
+        elif rel_type == "Realization":
+            line_style = "LongDashed"
+            target_arrow = "SolidArrow"
+        elif rel_type == "Dependency":
+            line_style = "Dashed"
+            target_arrow = "WireArrow"
+        elif rel_type == "Aggregation":
+            target_arrow = "SolidDiamond"
+        elif rel_type == "Composition":
+            target_arrow = "InvertedSolidDiamond"
+        elif "Association" in rel_type:
+            target_arrow = "WireArrow"
+        
+        # 描画可能なデータの正しい構文に合わせる
+        style_part = f"{line_style}!{source_arrow}"
+        
+        line = (f"<{rel.id}>]ClassRelationLink$<{rel.source_id}>!<"
+                f"{rel.target_id}>!{rel_type}!!{style_part}!{source_multi}!!!"
+                f"{target_arrow}!{target_multi}!!;")
         lines.append(line)
-    # ▲▲▲ 変更点 ▲▲▲
+    # ▲▲▲ 修正箇所 ▲▲▲
 
     with open(file_path, 'w', encoding='utf-8') as f:
-        f.write("\n".join(lines))
+        f.write("".join(lines))

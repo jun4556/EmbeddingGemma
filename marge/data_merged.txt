@@ -1,11 +1,1 @@
-<1>]Class$(436,310)!エンジン!!-エンジン%-馬力%!%;
-<2>]Class$(292,126)!運転手!!!;
-<3>]Class$(394,167)!自動車!!-ドア%-ドア数%-バージョン%!%-モデル%!%;
-<4>]Class$(554,191)!タイヤ!!-サイズ%-メーカー%-メーカー%!%-前輪%-後輪%!%;
-<5>]Class$(711,199)!前輪!!!;
-<6>]Class$(711,323)!後輪!!!;
-<1>]ClassRelationLink\$<3>!<2>!SimpleRelation!!Solid!None!0..1!!!None!0..*!!;
-<2>]ClassRelationLink\$<1>!<3>!Composition!!Solid!InvertedSolidDiamond!1!!!None!None!!;
-<3>]ClassRelationLink\$<4>!<3>!Aggregation!!Solid!SolidDiamond!1!!!None!4..6!!;
-<4>]ClassRelationLink\$<4>!<6>!Generalization!!Solid!SolidArrow!None!!!None!None!!;
-<5>]ClassRelationLink\$<5>!<4>!Generalization!!Solid!SolidArrow!None!!!None!None!!;
+<0>]Class$(436,310)!エンジン/部品!!-エンジン%-馬力%;<1>]Class$(292,126)!運転手/運転者!!!;<2>]Class$(554,191)!タイヤ!!-サイズ%-メーカー%-前輪%-後輪%;<3>]Class$(394,167)!自動車/乗り物!!-ドア数%-バージョン%-モデル%;<4>]Class$(711,199)!前輪!!!;<5>]Class$(711,323)!後輪!!!;<6>]ClassRelationLink$<3>!<1>!SimpleRelation!!Solid!None!0..*!!!None!0..*!!;<7>]ClassRelationLink$<0>!<3>!Composition!!Solid!None!1!!!InvertedSolidDiamond!1!!;<8>]ClassRelationLink$<2>!<3>!Aggregation!!Solid!None!1!!!SolidDiamond!4..6!!;<9>]ClassRelationLink$<2>!<5>!Generalization!!Solid!None!None!!!SolidArrow!None!!;<10>]ClassRelationLink$<4>!<2>!Generalization!!Solid!None!None!!!SolidArrow!None!!;<11>]ClassRelationLink$<2>!<3>!SimpleRelation!!Solid!None!1!!!None!1..*!!;
