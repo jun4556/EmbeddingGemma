@@ -56,7 +56,7 @@ def write_uml_file(file_path, uml_data):
     for uml_class in uml_data["classes"]:
         if uml_class.attributes:
             attrs_str = "%-".join(uml_class.attributes)
-            line = f"<{uml_class.id}>]Class$({uml_class.x},{uml_class.y})!{uml_class.name}!!-{attrs_str}%;"
+            line = f"<{uml_class.id}>]Class$({uml_class.x},{uml_class.y})!{uml_class.name}!!-{attrs_str}%!;"
         else:
             line = f"<{uml_class.id}>]Class$({uml_class.x},{uml_class.y})!{uml_class.name}!!!;"
         lines.append(line)
